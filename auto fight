@@ -1,0 +1,118 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Fluent " .. Fluent.Version,
+    SubTitle = "by dawid",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    AutoFight = Window:AddTab({ Title = "Auto Fight", Icon = "fighting" })
+}
+
+local modelNames = {}
+for i = 1, 16 do
+    local parentFolder = workspace.GameObjects.ArmWrestling[tostring(i)]
+    if parentFolder then
+        for _, child in pairs(parentFolder:GetChildren()) do
+            if child.Name == "NPC" and child:IsA("Folder") then
+                for _, npc in pairs(child:GetChildren()) do
+                    if npc:IsA("Model") then
+                        table.insert(modelNames, npc.Name)
+                    end
+                end
+            end
+        end
+    else
+        print("Parent folder '" .. i .. "' not found!")
+    end
+end
+
+local AutoClickToggle = Tabs.AutoFight:AddToggle("AutoClick", {Title = "Auto Click", Default = false })
+local AutoFightToggle = Tabs.AutoFight:AddToggle("AutoFight", {Title = "Auto Fight", Default = false })
+local BossDropdown = Tabs.AutoFight:AddDropdown("ModelDropdown", {
+    Title = "Select Boss",
+    Values = modelNames,
+    Multi = false,
+    Default = modelNames[1] or "None"
+})
+
+local autoClicking = false
+local fighting = false
+local selectedBoss = BossDropdown.Value
+
+BossDropdown:OnChanged(function(value)
+    selectedBoss = value
+    print("Selected Boss: ", selectedBoss)
+end)
+
+-- Auto Click Logic
+AutoClickToggle:OnChanged(function()
+    autoClicking = AutoClickToggle.Value
+
+    if autoClicking then
+        print("Auto Click Enabled")
+        spawn(function()
+            while autoClicking do
+                game:GetService("ReplicatedStorage").Packages.Knit.Services.ArmWrestleService.RE.onClickRequest:FireServer()
+                wait(0.1) -- Auto-click every 0.1 seconds
+            end
+        end)
+    else
+        print("Auto Click Disabled")
+    end
+end)
+
+-- Auto Fight Logic
+AutoFightToggle:OnChanged(function()
+    fighting = AutoFightToggle.Value
+
+    if fighting then
+        print("Auto Fight Enabled")
+        spawn(function()
+            while fighting do
+                if selectedBoss then
+                    local parentFolderName, bossNPC = nil, nil
+                    for i = 1, 16 do
+                        local parentFolder = workspace.GameObjects.ArmWrestling:FindFirstChild(tostring(i))
+                        if parentFolder and parentFolder:FindFirstChild("NPC") then
+                            local npcFolder = parentFolder.NPC
+                            local bossModel = npcFolder:FindFirstChild(selectedBoss)
+                            if bossModel then
+                                parentFolderName = tostring(i)
+                                bossNPC = bossModel.Table
+                                break
+                            end
+                        end
+                    end
+
+                    if parentFolderName and bossNPC then
+                        local args = {
+                            [1] = selectedBoss,
+                            [2] = bossNPC,
+                            [3] = parentFolderName
+                        }
+                        game:GetService("ReplicatedStorage").Packages.Knit.Services.ArmWrestleService.RE.onEnterNPCTable:FireServer(unpack(args))
+                    else
+                        print("Boss or NPC table not found!")
+                    end
+                end
+                wait(0.5) -- Control how frequently it sends requests
+            end
+        end)
+    else
+        print("Auto Fight Disabled")
+    end
+end)
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Fluent",
+    Content = "The script has been loaded.",
+    Duration = 8
+})
